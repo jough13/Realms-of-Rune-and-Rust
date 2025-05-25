@@ -329,6 +329,7 @@
         const BLOCKED_PATH_COLOR_STYLE = "color: #708090;"; 
         const RUNIC_ETCHING_COLOR_STYLE = "color: #afeeee;"; 
         const WHISPERING_TOTEM_COLOR_STYLE = "color: #dda0dd;"; 
+        const WHISPERING_ECHO_COLOR_STYLE = "color: #e0ffff;"; 
 
         const COMPANION_FIND_CHANCE = 0.1; 
         const BASE_STAT_VALUE = 3; 
@@ -342,6 +343,10 @@
         const COMBAT_ESCAPE_DUST_LOSS = 10;
         const MIN_STEP_SOUND_INTERVAL = 0.1; 
         const BASE_HP = 20; 
+        
+        const MGT_BLOCKED_PATH_THRESHOLD = 5;
+        const WIT_ETCHINGS_THRESHOLD = 5;
+        const SPR_TOTEM_THRESHOLD = 5;
 
 
         // --- Seeded RNG (Mulberry32) ---
@@ -363,7 +368,7 @@
             "Another soul wanders these blighted lands...", "The Runes pulse with a faint, expectant energy..."
         ];
 
-        // --- Sound Synthesizers (Tone.js) ---
+        // --- Sound Synthesizers (Tone.js) --- Moved up
         let soundSynth, noiseSynth, metalSynth; 
         function initializeSounds() {
             if (typeof Tone !== 'undefined') {
@@ -482,8 +487,8 @@
             level: 1, 
             xp: 0,
             xpToNextLevel: XP_FOR_LEVEL_2,
-            maxHp: 0, // Will be calculated in DOMContentLoaded
-            currentHp: 0, // Will be calculated in DOMContentLoaded
+            maxHp: 0, 
+            currentHp: 0, 
             runes: [], companion: null, collectedArtifacts: [], logMessages: [], 
             maxLogMessages: 35, isPaused: false, gameTickMs: INITIAL_GAME_TICK_MS,
             narrativeFlags: {}, activeDecision: null, encounteredNPCs: {},
@@ -491,7 +496,7 @@
             inCombat: false,
             isMuted: false, 
             lastStepSoundTime: 0,
-            lastExploredZoneIndex: 0 // For summary
+            lastExploredZoneIndex: 0 
         };
 
         // --- Lore & Content Definitions ---
@@ -528,6 +533,18 @@
             "WHISPERING_TOTEM_SUCCESS": "Your spirit attunes to the totem's whispers. You feel a fleeting surge of insight and hear: 'The echoes remember...'",
             "WHISPERING_TOTEM_FAIL": "A faint murmur emanates from the totem, but its words are indistinct, like wind through dead leaves."
         };
+        const NARRATIVE_SNIPPETS = [ 
+            "A cold draft chills you to the bone, carrying the scent of ozone and despair.",
+            "For a moment, you hear the faint sound of distant, mournful singing.",
+            "The very stones beneath your feet seem to hum with a forgotten sorrow.",
+            "A fleeting image flashes in your mind: a city of light, then darkness.",
+            "The air grows heavy, thick with unspoken memories.",
+            "You feel a prickling sensation, as if unseen eyes are watching you from the shadows.",
+            "A whisper on the wind: '...lost... all lost...'",
+            "The ground shudders almost imperceptibly, a deep sigh from the wounded earth.",
+            "A single, perfect drop of water falls from an unseen height, its echo unnaturally loud.",
+            "The silence here is older than the mountains, deeper than the void."
+        ];
 
         const WORLD_LORE_FRAGMENTS = [ 
             { key: "WL_GOLDEN_AGE_1", text: "A shard of iridescent shell whispers of a time when the 'Singers of Light' wove reality from pure sound, their voices the breath of creation." },
@@ -536,6 +553,8 @@
             { key: "WL_GOLDEN_AGE_LUMINA_SOCIETY", text: "The Lumina, it's whispered, lived in harmonious 'Constellations' – city-states bound by shared purpose, each a unique note in the world's First Song." },
             { key: "WL_GOLDEN_AGE_SKY_TEMPLES", text: "Sky-Temples, like the Aerie, were said to be anchors for the Sky-Citadels, drawing energy from both the earth and the celestial sphere to maintain their impossible altitudes." },
             { key: "WL_GOLDEN_AGE_FIRST_SONG_POWER", text: "The First Song wasn't just heard, it was *felt*. It shaped the land, healed the sick, and allowed the Lumina to commune directly with the essence of reality." },
+            { key: "WL_LUMINA_CULTURE_1", text: "Lumina society valued artistry and understanding above all. Their cities were living sculptures, their technology indistinguishable from magic." },
+            { key: "WL_LUMINA_CULTURE_2", text: "Debate and philosophical inquiry were central to Lumina life. Great halls of learning, now lost, once echoed with profound discussions on the nature of existence." },
             { key: "WL_THE_FALL_1", text: "A scorched datapad flickers with a final, desperate message: 'The Song is broken! The Void Star… it DRINKS the light! The Lumina… they are screaming…'" },
             { key: "WL_THE_FALL_2", text: "Etched into a Runesmith's hammer: 'The Great Weave frays. The Anchors of Reality groan under the strain. The Old Night returns, and They come with it.'" },
             { key: "WL_THE_FALL_3", text: "A child's music box, warped and silent. When touched, a phantom melody of pure terror echoes in your mind." },
@@ -544,14 +563,16 @@
             { key: "WL_THE_FALL_VOID_NATURE", text: "The Void is not mere emptiness, but an active, hungry anti-existence. The Star was its tooth, tearing a hole in the fabric of what is." },
             { key: "WL_THE_FALL_SKY_CITADELS_FALL", text: "When the Void Star struck, the Sky-Citadels, once beacons of light, rained down as fire and ruin. Few remnants survived, clinging to the highest peaks." },
             { key: "WL_THE_FALL_RUNESMITHS_FATE", text: "Many Runesmiths perished trying to reinforce the Weave against the Void Star's corruption. Their greatest creations became their tombs." },
+            { key: "WL_THE_FALL_WEAVERS_LAMENT", text: "The Weavers, who spun the threads of reality, could only watch as their tapestries were rent by the Void. Their lament is still felt in places where the Weave is thin." },
             { key: "WL_SECRETS_1", text: "A geode, when cracked, reveals not crystals, but a miniature, swirling galaxy. It hums in tune with the Rune of Perception, hinting at unseen layers of reality." },
             { key: "WL_SECRETS_2", text: "A star-chart, etched on dragon scale, depicts constellations that no longer exist, all spiraling towards a central, black abyss – the Void Star's trajectory." },
             { key: "WL_SECRETS_RUNESMITHS", text: "The Runesmiths, it is said, didn't just craft the Runes. They sang them into existence, binding fragments of the First Song into tangible forms. Their greatest works are keys, not just tools." },
-            { key: "WL_SECRETS_SLEEPERS", text: "Legends tell of 'Sleepers' – powerful beings or constructs from the Golden Age, hidden away, awaiting the 'True Note' of a mended Song to reawaken." },
+            { key: "WL_SECRETS_SLEEPERS", text: "Legends tell of 'Sleepers' – powerful beings or constructs from the Golden Age, hidden away, awaiting the 'True Note' of a mended Song to reawaken. Are they myth, or a forgotten promise?" },
             { key: "WL_SECRETS_WEAVERS", text: "Before the Runesmiths, there were the Weavers, who spun the raw energies of creation. The Runes are but echoes of their intricate tapestries." },
             { key: "WL_SECRETS_ARCHIVES_PURPOSE", text: "The Sunken Archives... they were meant to be a bulwark against forgetting, a final repository of the Lumina's understanding of the cosmos, should the First Song ever fade." },
             { key: "WL_SECRETS_FIRST_SONG_NATURE", text: "The First Song was not mere music, but the fundamental vibration of existence, the law that bound atoms and stars. Its fracturing led to The Fall." },
             { key: "WL_SECRETS_VOID_WHISPERS_TRUTH", text: "The whispers from the Void often speak in half-truths, preying on despair. Discernment is crucial, lest you become another lost echo." },
+            { key: "WL_SECRETS_GUARDIAN_PROTOCOL", text: "The Echo-Guardians were programmed with a final directive: protect the 'Heart-Note' of their designated sacred site, even if all else turns to dust." },
             { key: "WL_HOPE_SAPLING", text: "In the deepest char of the Ashen Woods, a single, silver-barked sapling thrives, its leaves shimmering with an inner light. It is a defiant spark against the overwhelming dark." },
             { key: "WL_HOPE_RUNES_ECHO", text: "The Runes are more than power. They are memories, fragments of the world's soul. Gathered, they might form a new Song, a new beginning... or a final, terrible crescendo." },
             { key: "WL_HOPE_WHISPERS", text: "Faint whispers, carried on the solar winds, speak of other 'Shards' – worlds touched by the Void Star, some resisting, some fallen, some... waiting." },
@@ -559,6 +580,7 @@
             { key: "WL_HOPE_MEMORY", text: "Even in ruin, memory endures. Each fragment of lore, each Rune, is a seed of what was, and what could be again." },
             { key: "WL_HOPE_SKY_TEMPLES_LEGACY", text: "The Sky-Temples, even in ruin, hold echoes of Lumina wisdom. Perhaps a way to mend the Weave, or at least understand its breaking, lies hidden within their aeries." },
             { key: "WL_HOPE_FINAL_SANCTUARY", text: "The 'Final Sanctuary' spoken of in visions... if it exists, it would require more than just Runes to find. It would need a heart attuned to the remnants of the First Song." },
+            { key: "WL_HOPE_REBIRTH_CYCLE", text: "Some ancient texts hint that The Fall was not an end, but a violent transformation, part of a cosmic cycle of creation and unmaking. Could this rust and ruin be the prelude to a new dawn?" },
             { key: "WL_VOID_ECHOES", text: "The silence of the Starfall Crater is a lie. Listen closely, and you hear it: the faint, chilling laughter of something ancient and utterly alien, from beyond the veil of stars." },
             { key: "WL_GUARDIANS_LEGEND", text: "The Lumina, before their fall, were said to have created 'Echo-Guardians,' sentient constructs bound to protect the sacred sites and the deepest secrets of the First Song." }
         ];
@@ -587,13 +609,26 @@
             },
             "Salamander": {
                 "The Ashen Woods": "Iggy seems to bask in the residual warmth of the ashen ground.",
-                "The Volcanic Wastes": "Iggy looks quite at home amidst the heat and sulfurous fumes.",
-                "The Sky-Temple Aerie": "Iggy shivers slightly in the cool, high-altitude winds."
+                "The Crimson Depths": "Iggy flicks its tongue, tasting the mineral-laden air of the caves.",
+                "The Volcanic Wastes": "Iggy looks quite at home amidst the heat and sulfurous fumes, its scales almost glowing.",
+                "The Starfall Crater": "Iggy presses itself flat against a rock, wary of the strange energies.",
+                "The Sunken Archives": "Iggy seems to enjoy the humidity, though it avoids the deeper pools.",
+                "The Sky-Temple Aerie": "Iggy shivers slightly in the cool, high-altitude winds, seeking the warmth of your pack."
             },
              "Hound": {
                 "The Ashen Woods": "Loyal tracks unseen scents through the ash, occasionally letting out a soft bark.",
                 "The Crimson Depths": "Loyal's tail wags tentatively as it explores the echoing caverns.",
-                "The Starfall Crater": "Loyal stays close, a low growl rumbling in its chest."
+                "The Starfall Crater": "Loyal stays close, a low growl rumbling in its chest, its hackles slightly raised.",
+                "The Sunken Archives": "Loyal whines softly, its ears drooping at the sight of so much decay.",
+                "The Sky-Temple Aerie": "Loyal barks joyfully at the open sky, chasing after drifting cloud-wisps."
+            },
+            "Sprite": {
+                "The Ashen Woods": "Glimmer flits nervously, its light dimming amidst the oppressive soot.",
+                "The Crimson Depths": "Glimmer darts between crystals, its own light adding to the subterranean glow.",
+                "The Volcanic Wastes": "Glimmer zips high above the heated ground, a tiny spark against the fiery backdrop.",
+                "The Starfall Crater": "Glimmer's light flickers erratically, disturbed by the crater's alien aura.",
+                "The Sunken Archives": "Glimmer hovers over ancient texts, as if trying to read them with its faint light.",
+                "The Sky-Temple Aerie": "Glimmer dances on the wind currents, a joyful speck of light among the clouds."
             }
         };
         const COMPANION_NPC_REACTION_DIALOGUE = {
@@ -613,11 +648,19 @@
             },
             "Salamander": {
                 "HERMIT_RUNESMITH": "Iggy basks for a moment near the Hermit's surprisingly warm forge-stone.",
-                "VOLCANIC_SHRINE_1": "Iggy seems to draw energy from the volcanic shrine, its colors brightening."
+                "VOLCANIC_SHRINE_1": "Iggy seems to draw energy from the volcanic shrine, its colors brightening.",
+                "SKY_SEER_ECHO": "Iggy curls up, seemingly unimpressed by the Sky-Seer's pronouncements."
             },
             "Hound": {
                 "LOST_SOUL": "Loyal nudges the Lost Soul gently with its nose, offering silent comfort.",
-                "ECHO_LUMINA": "Loyal sits patiently, observing the Lumina echo with a calm demeanor."
+                "ECHO_LUMINA": "Loyal sits patiently, observing the Lumina echo with a calm demeanor.",
+                "ARCHIVIST_CONSTRUCT": "Loyal circles the construct warily, unsure what to make of it."
+            },
+             "Sprite": {
+                "LOST_SOUL": "Glimmer's light dims in the presence of the Lost Soul's sadness.",
+                "ECHO_LUMINA": "Glimmer circles the Lumina's form, its light pulsing in time with the echo's faint glow.",
+                "ARCHIVIST_CONSTRUCT": "Glimmer darts around the Archivist Construct, leaving trails of faint light.",
+                "SKY_SEER_ECHO": "Glimmer hovers near the Sky-Seer, as if drawn to the ancient, airy magic."
             }
         };
         const EPITAPHS = [
@@ -1383,7 +1426,7 @@
                         }
                         break;
                     case 'H': 
-                        const shrineNarrativeKey = `SHRINE_${zone.shrineLoreKey}_${gameState.playerZoneX}_${element.lane}`; // More specific key
+                        const shrineNarrativeKey = `SHRINE_${zone.shrineLoreKey}_${gameState.playerZoneX}_${element.lane}`; 
                         if (zone.shrineLoreKey && ZONE_LORE[zone.shrineLoreKey] && !gameState.narrativeFlags[shrineNarrativeKey]) {
                             addLogMessage(ZONE_LORE[zone.shrineLoreKey], "lore");
                             awardXP(5); 
@@ -1404,7 +1447,7 @@
                         }
                         if (gameState.runes.includes('Φ') && gameState.runes.includes('Δ')) {
                             const synergyKey = zone.shrineLoreKey + "_SYNERGY_" + gameState.playerZoneX + "_" + element.lane;
-                            if (SHRINE_SYNERGY_LORE[zone.shrineLoreKey + "_SYNERGY"] && !gameState.narrativeFlags[synergyKey]) { // Check general synergy lore
+                            if (SHRINE_SYNERGY_LORE[zone.shrineLoreKey + "_SYNERGY"] && !gameState.narrativeFlags[synergyKey]) { 
                                 addLogMessage(SHRINE_SYNERGY_LORE[zone.shrineLoreKey + "_SYNERGY"], "synergy"); 
                                 awardXP(15); 
                                 gameState.narrativeFlags[synergyKey] = true;
@@ -1414,7 +1457,6 @@
                             }
                         }
                         break;
-                    // ... (rest of cases like F, 0, w, G, A, N, D, L, P, +, c, s, V, X, ., #, runes, T, etc. remain largely the same but use awardXP) ...
                     case 'F': 
                         if (element.lane === gameState.playerLane) { 
                             let dustForaged = seededRandomInt(1, 2);
@@ -1426,22 +1468,62 @@
                             addLogMessage(`You forage in the forest and find ${dustForaged} Glimmering Dust.`, "lore");
                         }
                         break;
+                    case '0': 
+                        if (element.lane === gameState.playerLane) {
+                            const darkFeatureMessages = [
+                                "You pass over a shadowed depression in the earth.",
+                                "The ground here feels unnaturally cold, like a forgotten wound.",
+                                "Faint, unsettling whispers seem to emanate from this dark patch of land.",
+                                "These could be the ruins of something ancient, or perhaps a shallow crater."
+                            ];
+                            addLogMessage(darkFeatureMessages[seededRandomInt(0, darkFeatureMessages.length - 1)], "lore");
+                        }
+                        break;
+                    case 'w': 
+                        if (zone.name === "The Sky-Temple Aerie" && element.lane === gameState.playerLane) {
+                            if (seededRandom() < 0.5) {
+                                addLogMessage("A gust of wind makes the ancient chimes sing a faint, ethereal note... a fragment of the First Song?", "world_lore");
+                                awardXP(5); 
+                            } else {
+                                const scrapsFound = seededRandomInt(1,3);
+                                gameState.resources.ancientScraps += scrapsFound;
+                                addLogMessage(`The wind chime jingles, shaking loose ${scrapsFound} Ancient Scraps.`, "lore");
+                            }
+                        } else if (element.lane === gameState.playerLane) { 
+                             addLogMessage(`Passed by a ${getElementDescription(currentElementChar)}.`);
+                        }
+                        break;
+                    case 'G': 
+                         if (element.lane === gameState.playerLane) {
+                            addLogMessage("You encounter the remains of an ancient Lumina Guardian. Its optical sensors flicker faintly.", "world_lore");
+                            awardXP(10); 
+                            if (seededRandom() < 0.3) { 
+                                const skyShardArtifact = ARTIFACTS.find(art => art.key === "ART_LUMINA_SKY_SHARD");
+                                if (skyShardArtifact && !gameState.collectedArtifacts.includes(skyShardArtifact.key)) {
+                                    gameState.collectedArtifacts.push(skyShardArtifact.key);
+                                    gameState.narrativeFlags[skyShardArtifact.key] = true; 
+                                    addLogMessage(`<strong>${skyShardArtifact.name}</strong>: ${skyShardArtifact.description}`, "artifact");
+                                    awardXP(15); 
+                                }
+                            }
+                        }
+                        break;
                     case 'A': 
-                        const artifactKey = `ARTIFACT_${gameState.playerZoneX}_${element.lane}`; // Unique key for this specific artifact instance
+                        const artifactKey = `ARTIFACT_${gameState.playerZoneX}_${element.lane}`; 
                         if (!gameState.narrativeFlags[artifactKey]) {
                             const undiscoveredArtifacts = ARTIFACTS.filter(art => !gameState.collectedArtifacts.includes(art.key));
                             if (undiscoveredArtifacts.length > 0) {
                                 const randomIndex = seededRandomInt(0, undiscoveredArtifacts.length - 1);
                                 const foundArtifact = undiscoveredArtifacts[randomIndex];
                                 gameState.collectedArtifacts.push(foundArtifact.key);
-                                gameState.narrativeFlags[artifactKey] = true; // Mark this specific instance as found
+                                gameState.narrativeFlags[artifactKey] = true; 
                                 addLogMessage(`<strong>${foundArtifact.name}</strong>: ${foundArtifact.description}`, "artifact");
                                 
                                 let artifactXp = 15;
                                 if (foundArtifact.key === "ART_TOME_MIGHT") {
                                     gameState.stats.might++;
                                     gameState.maxHp = calculateMaxHp(); 
-                                    gameState.currentHp = gameState.maxHp; // Full heal on stat tome
+                                    gameState.currentHp = gameState.maxHp; 
                                     addLogMessage("Your Might increases by 1! You feel tougher.", "synergy");
                                     artifactXp = 20;
                                 } else if (foundArtifact.key === "ART_TOME_WITS") {
@@ -1451,7 +1533,7 @@
                                 } else if (foundArtifact.key === "ART_TOME_RESOLVE") {
                                     gameState.stats.spirit++;
                                     gameState.maxHp = calculateMaxHp();
-                                    gameState.currentHp = gameState.maxHp; // Full heal on stat tome
+                                    gameState.currentHp = gameState.maxHp; 
                                     addLogMessage("Your Spirit increases by 1! Your resolve hardens.", "synergy");
                                     artifactXp = 20;
                                 } else if (gameState.stats.wits >= WIT_INSIGHT_THRESHOLD) {
@@ -1463,19 +1545,48 @@
                             }
                         }
                         break;
-                    // ... (Ensure XP awards are given for first-time discoveries where appropriate) ...
-                    // For example, for L, P, D, G, N, and Runes, use a narrativeFlag combined with playerZoneX and lane to ensure XP is awarded once per unique instance.
+                    case 'N': 
+                        if (!gameState.encounteredNPCs[npcSpecificKey] && element.npcType) { 
+                            const npcData = NPCS[element.npcType];
+                            if (npcData) {
+                                const dialogueIndex = seededRandomInt(0, npcData.dialogue.length - 1);
+                                const dialogue = npcData.dialogue[dialogueIndex];
+                                addLogMessage(`${npcData.name}: "${dialogue}"`, "npc");
+                                awardXP(8); 
+                                gameState.encounteredNPCs[npcSpecificKey] = true; 
+
+                                if (gameState.companion && COMPANION_NPC_REACTION_DIALOGUE[gameState.companion.type] && COMPANION_NPC_REACTION_DIALOGUE[gameState.companion.type][element.npcType]) {
+                                    addLogMessage(COMPANION_NPC_REACTION_DIALOGUE[gameState.companion.type][element.npcType], "companion");
+                                }
+                            }
+                        }
+                        break;
+                    case 'D': 
+                        addLogMessage("You found a Data Crystal, shimmering with lost Lumina knowledge!", "world_lore");
+                        awardXP(10); 
+                        if (seededRandom() < 0.3) { 
+                            const scrapsFound = seededRandomInt(1, 3);
+                            gameState.resources.ancientScraps += scrapsFound;
+                            addLogMessage(`The crystal crumbles, revealing ${scrapsFound} Ancient Scraps.`, "lore");
+                        }
+                        const undiscoveredDataLore = WORLD_LORE_FRAGMENTS.filter(lore => !gameState.narrativeFlags[lore.key] && lore.key.includes("ARCHIVES"));
+                         if (undiscoveredDataLore.length > 0) {
+                            const foundLore = undiscoveredDataLore[0]; 
+                            addLogMessage(foundLore.text, "world_lore");
+                            gameState.narrativeFlags[foundLore.key] = true;
+                        }
+                        break;
                     case 'L': 
                         const loreFlagKey = `LORE_${gameState.playerZoneX}_${element.lane}`;
                         if (!gameState.narrativeFlags[loreFlagKey]) {
-                            const undiscoveredLore = WORLD_LORE_FRAGMENTS.filter(lore => !gameState.narrativeFlags[lore.key]); // Check against global discovery
+                            const undiscoveredLore = WORLD_LORE_FRAGMENTS.filter(lore => !gameState.narrativeFlags[lore.key]); 
                             if (undiscoveredLore.length > 0) {
                                 const randomIndex = seededRandomInt(0, undiscoveredLore.length - 1);
                                 const foundLore = undiscoveredLore[randomIndex];
                                 addLogMessage(foundLore.text, "world_lore");
                                 awardXP(10); 
-                                gameState.narrativeFlags[foundLore.key] = true; // Mark the lore itself as read
-                                gameState.narrativeFlags[loreFlagKey] = true; // Mark this specific location as used for lore
+                                gameState.narrativeFlags[foundLore.key] = true; 
+                                gameState.narrativeFlags[loreFlagKey] = true; 
                                  if (gameState.stats.wits >= WIT_INSIGHT_THRESHOLD) {
                                     addLogMessage("Your sharp mind gleans a deeper meaning from the ancient text.", "synergy");
                                 }
@@ -1484,7 +1595,79 @@
                             }
                         }
                         break;
-                    // ... (similar XP awarding logic for other discoverables) ...
+                    case 'P': 
+                        if (!gameState.companion) {
+                            const companionIndex = seededRandomInt(0, COMPANIONS.length - 1);
+                            const randomCompanion = COMPANIONS[companionIndex];
+                            gameState.companion = { ...randomCompanion }; 
+                            addLogMessage(`A shimmering presence solidifies. You've found a companion: ${gameState.companion.name} the ${gameState.companion.type}!`, "companion");
+                            awardXP(15); 
+                            if (gameState.stats.spirit >= SPIRIT_COMPANION_THRESHOLD) {
+                                addLogMessage(`${gameState.companion.name} seems to bond with your spirit instantly.`, "synergy");
+                            } else {
+                                addLogMessage(`${gameState.companion.name} lets out a soft ${gameState.companion.call}.`, "companion");
+                            }
+                        } else {
+                            addLogMessage(`You sense another friendly presence, but ${gameState.companion.name} remains by your side.`, "lore");
+                        }
+                        break;
+                    case '+': 
+                        const epitaphIndex = seededRandomInt(0, EPITAPHS.length - 1);
+                        const epitaph = EPITAPHS[epitaphIndex];
+                        addLogMessage(epitaph, "grave");
+                        let dustFromGraveChance = 0.15;
+                        if (gameState.stats.might > BASE_STAT_VALUE) { 
+                            dustFromGraveChance += (gameState.stats.might - BASE_STAT_VALUE) * MIGHT_BONUS_DUST_CHANCE_PER_POINT;
+                        }
+                        if (seededRandom() < dustFromGraveChance) { 
+                            const dustFoundGrave = seededRandomInt(1, 3);
+                            gameState.resources.glimmeringDust += dustFoundGrave;
+                            addLogMessage(`A small offering of ${dustFoundGrave} Glimmering Dust was left here.`, "grave");
+                        }
+                        break;
+                    case 'c': 
+                        if (zone.name === "The Sunken Archives") {
+                             addLogMessage(`Passed by a ${getElementDescription(currentElementChar)}.`); 
+                        } else {
+                            addLogMessage("You pass a small, charred idol, its features eroded.", "lore"); 
+                        }
+                        break;
+                    case 's': addLogMessage("A sulfurous vent hisses nearby, releasing acrid steam.", "lore"); break;
+                    case 'V': 
+                        gameState.resources.voidEssence++;
+                        addLogMessage("A shard of pure Void, cold and unsettling, is perceived. (+1 Void Essence)", "world_lore");
+                        break;
+                    case 'X': addLogMessage("A patch of warped, alien growth twitches nearby. It feels wrong.", "lore"); break;
+                    case '.':
+                         if (element.lane === gameState.playerLane) {
+                            let dustFound = seededRandomInt(1, 5);
+                             if (seededRandom() < ( (gameState.stats.might - BASE_STAT_VALUE) * MIGHT_BONUS_DUST_CHANCE_PER_POINT) ) {
+                                dustFound +=1;
+                            }
+                            gameState.resources.glimmeringDust += dustFound;
+                            addLogMessage(`Found ${dustFound} Glimmering Dust (.)`);
+                            if (gameState.companion && seededRandom() < COMPANION_FIND_CHANCE) {
+                                gameState.resources.glimmeringDust += 1;
+                                addLogMessage(`${gameState.companion.name} sniffs out an extra Glimmering Dust!`, "companion");
+                            }
+                        }
+                        break;
+                    case 'm': 
+                        if (element.lane === gameState.playerLane) {
+                            addLogMessage(`Passed by a ${getElementDescription(currentElementChar)}.`);
+                            if (gameState.companion && seededRandom() < COMPANION_FIND_CHANCE) {
+                                gameState.resources.glimmeringDust += 1;
+                                addLogMessage(`${gameState.companion.name} paws at the moss, uncovering 1 Glimmering Dust!`, "companion");
+                            }
+                        }
+                        break;
+                    case '#':
+                        if (element.lane === gameState.playerLane) {
+                            const scrapsFound = seededRandomInt(1, 2);
+                            gameState.resources.ancientScraps += scrapsFound;
+                            addLogMessage(`Found ${scrapsFound} Ancient Scraps (#)!`);
+                        }
+                        break;
                     case '§': 
                         if (element.lane === gameState.playerLane && !gameState.runes.includes('§')) {
                             gameState.runes.push('§'); awardXP(20); 
@@ -1504,6 +1687,22 @@
                             addLogMessage("Discovered Rune of Resilience (Δ)! Fortitude increased.");
                         } else if (element.lane === gameState.playerLane) { addLogMessage("Passed an already attuned Resilience Rune.");}
                         break;
+                    case 'T': case 't': case 'Y': case 'o': 
+                    case 'S': case 'b': case 'R': case 'C': 
+                        addLogMessage(`Passed by a ${getElementDescription(currentElementChar)}.`);
+                        break;
+                    case '♦': case '◊': case '✧': case '*':
+                        addLogMessage(`Passed by a glistening ${getElementDescription(currentElementChar)}.`);
+                         const crystalDust = seededRandomInt(1, 2);
+                        gameState.resources.glimmeringDust += crystalDust;
+                        addLogMessage(`A nearby crystal sheds ${crystalDust} Glimmering Dust.`);
+                        break;
+                    case '[': case ']': case '¦': case '^':
+                        addLogMessage(`Navigated near ancient ${getElementDescription(currentElementChar)}.`);
+                        break;
+                    case '~': /* Water - No direct encounter, handled by movement */ break;
+                    case '=': /* Bridge - No direct encounter, handled by movement */ break;
+                    case 'M': /* Mountain - No direct encounter, handled by movement */ break;
                 }
             });
         }
@@ -1590,7 +1789,7 @@
                         addLogMessage(ZONE_LORE[newZone.entryLoreKey], "lore");
                         gameState.narrativeFlags[newZone.entryLoreKey] = true; 
                     }
-                    if(!gameState.narrativeFlags[newZoneFlag]){ // Award XP only on first entry to a specific zone
+                    if(!gameState.narrativeFlags[newZoneFlag]){ 
                         awardXP(50); 
                         gameState.narrativeFlags[newZoneFlag] = true;
                     }
