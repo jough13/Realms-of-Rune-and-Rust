@@ -89,9 +89,11 @@
             color: #ff4136; /* Red for enemies */
             font-weight: bold;
         }
-        .blocked-path-tile { color: #708090; } /* SlateGray */
-        .runic-etching-tile { color: #afeeee; } /* PaleTurquoise */
-        .whispering-totem-tile { color: #dda0dd; } /* Plum */
+        .blocked-path-tile { color: #708090; } 
+        .runic-etching-tile { color: #afeeee; } 
+        .whispering-totem-tile { color: #dda0dd; } 
+        .whispering-echo-tile { color: #e0ffff; }
+
 
         .stats-bar, .log-area, .controls-area, .decision-area, .message-input-area, .summary-area {
             border: 1px dashed #660066;
@@ -110,7 +112,7 @@
             margin: 0 0 0.25rem 0;
             font-size: 14px;
         }
-        .log-area p.lore-message, .log-area p.startup-message { 
+        .log-area p.lore-message, .log-area p.startup-message, .log-area p.narrative-snippet { 
             color: #ffdead; 
             font-style: italic;
             border-left: 2px solid #ff8c00; 
@@ -154,6 +156,12 @@
             border-left: 2px solid #48d1cc; 
             padding-left: 0.5em;
             margin-bottom: 0.3em; 
+        }
+        .log-area p.quest-message { /* For quest updates */
+            color: #ffb6c1; /* LightPink */
+            font-style: italic;
+            border-left: 2px solid #ff69b4; /* HotPink */
+            padding-left: 0.5em;
         }
         .log-area p.combat-message { 
             color: #ff69b4; 
@@ -368,7 +376,7 @@
             "Another soul wanders these blighted lands...", "The Runes pulse with a faint, expectant energy..."
         ];
 
-        // --- Sound Synthesizers (Tone.js) --- Moved up
+        // --- Sound Synthesizers (Tone.js) --- 
         let soundSynth, noiseSynth, metalSynth; 
         function initializeSounds() {
             if (typeof Tone !== 'undefined') {
@@ -1196,7 +1204,7 @@
                 addLogMessage("An unknown foe fades into the shadows...", "combat-message");
                 return;
             }
-            let enemy = {...enemyData}; // Create a mutable copy for current combat
+            let enemy = {...enemyData}; 
 
             addLogMessage(`You encounter a ${enemy.name}! ${enemy.description}`, "combat-message");
             gameState.inCombat = true;
@@ -1242,7 +1250,6 @@
                 return;
             }
 
-            // Turn-based combat
             let combatLogMessages = [];
             let combatRound = 0;
             const maxCombatRounds = 5; 
@@ -1256,7 +1263,6 @@
                 combatRound++;
                 combatLogMessages.push(`--- Round ${combatRound} ---`);
 
-                // Player's Attack
                 let playerAttackPower = gameState.stats.might + seededRandomInt(0, Math.floor(gameState.level / 2));
                 let attackType = "melee";
                 if (gameState.stats.spirit > gameState.stats.might + 2) {
@@ -1274,7 +1280,6 @@
                     return;
                 }
 
-                // Enemy's Attack
                 const enemyAttackPower = enemy.attack + seededRandomInt(-1, 1); 
                 const playerDefenseSoak = Math.floor(gameState.stats.might / 3) + Math.floor(gameState.stats.spirit / 4); 
                 const damageToPlayer = Math.max(0, enemyAttackPower - playerDefenseSoak); 
@@ -1691,14 +1696,23 @@
                     case 'S': case 'b': case 'R': case 'C': 
                         addLogMessage(`Passed by a ${getElementDescription(currentElementChar)}.`);
                         break;
-                    case '♦': case '◊': case '✧': case '*':
+                    case '♦': case '◊': case '✧':
                         addLogMessage(`Passed by a glistening ${getElementDescription(currentElementChar)}.`);
                          const crystalDust = seededRandomInt(1, 2);
                         gameState.resources.glimmeringDust += crystalDust;
                         addLogMessage(`A nearby crystal sheds ${crystalDust} Glimmering Dust.`);
+                        // Pristine Crystal Shard logic
+                        if (gameState.narrativeFlags.quest_PristineCrystal_Offered && 
+                            !gameState.narrativeFlags.hasPristineCrystalShard &&
+                            !gameState.narrativeFlags.quest_PristineCrystal_Completed &&
+                            seededRandom() < 0.05) { // 5% chance for pristine if quest is active
+                            gameState.narrativeFlags.hasPristineCrystalShard = true;
+                            addLogMessage("This crystal shard gleams with an unusual purity! It must be the kind the Runesmith sought.", "quest");
+                            awardXP(20); // XP for finding the quest item
+                        }
                         break;
                     case '[': case ']': case '¦': case '^':
-                        addLogMessage(`Navigated near ancient ${getElementDescription(currentElementChar)}.`);
+                        addLogMessage(`Mapsd near ancient ${getElementDescription(currentElementChar)}.`);
                         break;
                     case '~': /* Water - No direct encounter, handled by movement */ break;
                     case '=': /* Bridge - No direct encounter, handled by movement */ break;
